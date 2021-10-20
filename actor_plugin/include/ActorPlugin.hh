@@ -82,6 +82,7 @@ namespace gazebo
       /// Compute the social force.
       ignition::math::Vector3d SocialForce(ignition::math::Pose3d &_pose, ignition::math::Vector3d _velocity) const;
 
+
       /// Compute the obstacle force.
       ignition::math::Vector3d ObstacleForce(ignition::math::Pose3d &_pose) const;
 
@@ -159,7 +160,7 @@ namespace gazebo
 
       // param list
       void get_ros_parameters(const ros::NodeHandlePtr);
-
+       double obstacleWeight = 1.0;
       double socialForceFactor;
       double desiredForceFactor;
       double obstacleForceFactor;

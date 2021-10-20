@@ -124,6 +124,14 @@ void ActorPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 
   this->rosQueueThread =
     std::thread(std::bind(&ActorPlugin::QueueThread, this));
+
+  // Print PID for debugger to connect. Only for debugging purposes
+  ROS_ERROR_STREAM("Actor Plugin ID: "<< getpid());
+  // Set Actor Pose from the SDF
+  ignition::math::Pose3d pose = this->actor->WorldPose();
+  pose.Pos() = this->start_location;
+  this->actor->SetWorldPose(pose, false, false);
+
 }
 
 ignition::math::Vector3d ActorPlugin::CallActorVelClient(std::string actor_name_) const{
@@ -222,6 +230,28 @@ ignition::math::Vector3d ActorPlugin::SocialForce(ignition::math::Pose3d &_pose,
   return force;
 }
 
+void ActorPlugin::HandleObstacles(ignition::math::Vector3d &_pos)
+{
+    for (unsigned int i = 0; i < this->world->ModelCount(); ++i)
+    {
+        physics::ModelPtr model = this->world->ModelByIndex(i);
+        if (std::find(this->ignoreModels.begin(), this->ignoreModels.end(),
+                      model->GetName()) == this->ignoreModels.end())
+        {
+            ignition::math::Vector3d offset = model->WorldPose().Pos() -
+                                              this->actor->WorldPose().Pos();
+            double modelDist = offset.Length();
+            if (modelDist < 4.0)
+            {
+                double invModelDist = this->obstacleWeight / modelDist;
+                offset.Normalize();
+                offset *= invModelDist;
+                _pos -= offset;
+            }
+        }
+    }
+}
+
 /////////////////////////////////////////////////
 void ActorPlugin::OnUpdate(const common::UpdateInfo &_info)
 {
@@ -235,6 +265,8 @@ void ActorPlugin::OnUpdate(const common::UpdateInfo &_info)
   ignition::math::Vector3d pos = this->target - pose.Pos();
   ignition::math::Vector3d rpy = pose.Rot().Euler();
 
+
+    this->HandleObstacles(pos);
   // Get the desired force to waypoint: "I want to go there at full speed!"
   ignition::math::Vector3d desiredForce = pos.Normalize() * this->vMax;
   ignition::math::Vector3d socialForce_ = SocialForce(pose, this->velocity);
@@ -279,7 +311,10 @@ void ActorPlugin::OnUpdate(const common::UpdateInfo &_info)
 
   double distanceTraveled = (pose.Pos() -
       this->actor->WorldPose().Pos()).Length();
-
+  if (pose.Pos().Y() < -10.0){
+      pose.Pos() = this->start_location;
+      this->actor->SetWorldPose(pose, false, false);
+  }
   CallPublisher(a, pos.Normalize(), socialForce_, new_yaw.Radian()); 
   this->actor->SetWorldPose(pose, false, false);
   this->actor->SetScriptTime(this->actor->ScriptTime() +
