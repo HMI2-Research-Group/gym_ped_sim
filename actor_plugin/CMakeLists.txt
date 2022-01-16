@@ -23,3 +23,8 @@ target_link_libraries(actorplugin_ros ${GAZEBO_LIBRARIES}  ${roscpp_LIBRARIES} $
 set_target_properties(actorplugin_ros PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
 
+add_library(patientplugin_ros SHARED src/PatientPlugin_ros.cc)
+target_link_libraries(patientplugin_ros ${GAZEBO_LIBRARIES}  ${roscpp_LIBRARIES} ${tf_LIBRARIES})
+set_target_properties(patientplugin_ros PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
+
