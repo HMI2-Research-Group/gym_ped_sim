@@ -26,7 +26,7 @@
 #include <cmath>
 #include <ctime>
 #include <chrono>
-#include "ActorPlugin.hh"
+#include "PatientPlugin.hh"
 #include <ros/console.h>
 #include <iostream>
 #include <thread>
@@ -35,23 +35,23 @@
 
 #define PI 3.14159265359
 using namespace gazebo;
-GZ_REGISTER_MODEL_PLUGIN(ActorPlugin)
+GZ_REGISTER_MODEL_PLUGIN(PatientPlugin)
 
 #define WALKING_ANIMATION "walking"
 
 /////////////////////////////////////////////////
-ActorPlugin::ActorPlugin()
+PatientPlugin::PatientPlugin()
 {
 }
 
 /////////////////////////////////////////////////
-void ActorPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
+void PatientPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 {
     this->actor = boost::dynamic_pointer_cast<physics::Actor>(_model);
     this->world = this->actor->GetWorld();
     this->start_location = this->actor->WorldPose().Pos();
     this->connections.push_back(event::Events::ConnectWorldUpdateBegin(
-            std::bind(&ActorPlugin::OnUpdate, this, std::placeholders::_1)));
+            std::bind(&PatientPlugin::OnUpdate, this, std::placeholders::_1)));
     this->velocity = 1.0;
 
     // Read in the first target location
@@ -112,21 +112,21 @@ void ActorPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
     this->rosNode->setCallbackQueue(&this->rosQueue);
 
     this->SetPoseService = this->rosNode->advertiseService("/"+this->actor->GetName()+"/SetActorPosition",
-                                                           &ActorPlugin::SetPoseCallback, this);
+                                                           &PatientPlugin::SetPoseCallback, this);
 
     this->SetTargetService = this->rosNode->advertiseService("/"+this->actor->GetName()+"/SetActorTarget",
-                                                             &ActorPlugin::SetTargetCallback, this);
+                                                             &PatientPlugin::SetTargetCallback, this);
 
     this->GetVelService = this->rosNode->advertiseService("/"+this->actor->GetName()+"/GetActorVelocity",
-                                                          &ActorPlugin::GetVelCallback, this);
+                                                          &PatientPlugin::GetVelCallback, this);
 
     this->VelPublisher = this->rosNode->advertise<geometry_msgs::Twist>("/"+this->actor->GetName()+"/actor_vel",1);
 
     this->rosQueueThread =
-            std::thread(std::bind(&ActorPlugin::QueueThread, this));
+            std::thread(std::bind(&PatientPlugin::QueueThread, this));
 
     // Print PID for debugger to connect. Only for debugging purposes
-    ROS_ERROR_STREAM("Actor Plugin ID: "<< getpid());
+    ROS_ERROR_STREAM("Patient Plugin ID: "<< getpid());
     // Set Actor Pose from the SDF
     ignition::math::Pose3d pose = this->actor->WorldPose();
     pose.Pos() = this->start_location;
@@ -134,7 +134,7 @@ void ActorPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 
 }
 
-ignition::math::Vector3d ActorPlugin::CallActorVelClient(std::string actor_name_) const{
+ignition::math::Vector3d PatientPlugin::CallActorVelClient(std::string actor_name_) const{
     ros::ServiceClient GetVelClient = this->rosNode->serviceClient<actor_services::GetVel>("/"+actor_name_+"/GetActorVelocity");
     actor_services::GetVel getvel_srv;
     getvel_srv.request.set_flag = false;
@@ -145,7 +145,7 @@ ignition::math::Vector3d ActorPlugin::CallActorVelClient(std::string actor_name_
 
 /////////////////////////////////////////////////
 // Compute social force on the actor.
-ignition::math::Vector3d ActorPlugin::SocialForce(ignition::math::Pose3d &_pose, ignition::math::Vector3d _velocity) const
+ignition::math::Vector3d PatientPlugin::SocialForce(ignition::math::Pose3d &_pose, ignition::math::Vector3d _velocity) const
 {
 
 
@@ -230,7 +230,7 @@ ignition::math::Vector3d ActorPlugin::SocialForce(ignition::math::Pose3d &_pose,
     return force;
 }
 
-void ActorPlugin::HandleObstacles(ignition::math::Vector3d &_pos)
+void PatientPlugin::HandleObstacles(ignition::math::Vector3d &_pos)
 {
     for (unsigned int i = 0; i < this->world->ModelCount(); ++i)
     {
@@ -253,98 +253,102 @@ void ActorPlugin::HandleObstacles(ignition::math::Vector3d &_pos)
 }
 
 /////////////////////////////////////////////////
-void ActorPlugin::OnUpdate(const common::UpdateInfo &_info)
-{
+void PatientPlugin::OnUpdate(const common::UpdateInfo &_info) {
     // Time delta
     double dt = (_info.simTime - this->lastUpdate).Double();
 
     // Position of this actor
     ignition::math::Pose3d pose = this->actor->WorldPose();
 
-    // Direct vector to the current target
-    ignition::math::Vector3d pos = this->target - pose.Pos();
-    ignition::math::Vector3d rpy = pose.Rot().Euler();
-
-
-    this->HandleObstacles(pos);
-    // Get the desired force to waypoint: "I want to go there at full speed!"
-    ignition::math::Vector3d desiredForce = pos.Normalize() * this->vMax;
-    ignition::math::Vector3d socialForce_ = SocialForce(pose, this->velocity);
-    //ignition::math::Vector3d obstacleForce = ObstacleForce(pose);
-
-    //std::chrono::time_point<std::chrono::system_clock> start, end;
-    //start = std::chrono::system_clock::now();
-    //end = std::chrono::system_clock::now();
-    //std::chrono::duration<double> elapsed_seconds = end-start;
-    //ROS_ERROR("time count: %lf", elapsed_seconds.count());
-    //ignition::math::Vector3d a = (this->socialForceFactor * socialForce_) + (this->desiredForceFactor * desiredForce) + (this->obstacleForceFactor * obstacleForce);
-    ignition::math::Vector3d a = (this->socialForceFactor * socialForce_) + (this->desiredForceFactor * desiredForce);
-
-    //this->velocity = 0.5 * this->velocity + a * dt;
-    this->velocity = this->velocity*this->vel_param + a * dt;
-
-    double speed = this->velocity.Length();
-    if (speed > this->vMax) {
-        this->velocity = this->velocity.Normalize() * this->vMax;
-    }
-
-    ignition::math::Angle yaw_update = atan2(this->velocity.Y(), this->velocity.X()) + 0.5*PI - rpy.Z();
-    yaw_update.Normalize();
-
-    double temp_vel = this->velocity.Length();
-
-    // Rotate in place, instead of jumping.
-    if (std::fabs(yaw_update.Radian()) > (this->maxAngleUpdate/180.0 * PI)){
-        double yaw_update_sign = yaw_update.Radian()/std::fabs(yaw_update.Radian());
-        yaw_update = this->maxAngleUpdate/180 * PI*yaw_update_sign;
-    }
-    ignition::math::Angle new_yaw = rpy.Z()+yaw_update.Radian()-0.5*PI;
-    this->velocity.X() = temp_vel * cos(yaw_update.Radian()) * cos(new_yaw.Radian());
-    this->velocity.Y() = temp_vel * cos(yaw_update.Radian()) * sin(new_yaw.Radian());
-
-    pose.Rot() = ignition::math::Quaterniond(0.5*PI, 0, new_yaw.Radian()+0.5*PI);
-    yaw_vel = yaw_update.Radian()/dt;
-
-    //ROS_ERROR("%s, yaw: %lf", this->actor->GetName().c_str(), rpy.Z()+yaw.Radian()-0.5*PI);
-    pose.Pos() = pose.Pos() + this->velocity * dt;
-    pose.Pos().Z(this->fixed_actor_height);
-
-    double distanceTraveled = (pose.Pos() -
-                               this->actor->WorldPose().Pos()).Length();
-    if (pose.Pos().Y() < -10.0){
-        pose.Pos() = this->start_location;
-        this->actor->SetWorldPose(pose, false, false);
-    }
-    CallPublisher(a, pos.Normalize(), socialForce_, new_yaw.Radian());
-    this->actor->SetWorldPose(pose, false, false);
-    this->actor->SetScriptTime(this->actor->ScriptTime() +
-                               (distanceTraveled * this->animationFactor));
-    this->lastUpdate = _info.simTime;
-
-    // ros stuff
-    //static tf::TransformBroadcaster br;
-    //tf::Transform tf_transform;
-    //tf_transform.setOrigin(tf::Vector3(pose.Pos().X(),pose.Pos().Y(),0));
-    //tf::Quaternion tf_q;
-    //tf_q.setRPY(rpy.X()-0.5*PI, rpy.Y(), new_yaw.Radian());
-    //tf_transform.setRotation(tf_q);
-    //br.sendTransform(tf::StampedTransform(tf_transform, ros::Time::now(), "default_world", this->actor->GetName()));
-    //ros::spinOnce();
-
     double distance = pose.Pos().Distance(this->target);
 
-    if (distance < sf_distance_th)
-    {
-        ignition::math::Vector3d temp = this->start_location;
-        this->start_location = this->target;
-        this->target = temp;
-        pos = this->target - pose.Pos();
-    }
+    if (distance > sf_distance_th) {
 
+
+        // Direct vector to the current target
+        ignition::math::Vector3d pos = this->target - pose.Pos();
+        ignition::math::Vector3d rpy = pose.Rot().Euler();
+
+
+        this->HandleObstacles(pos);
+        // Get the desired force to waypoint: "I want to go there at full speed!"
+        ignition::math::Vector3d desiredForce = pos.Normalize() * this->vMax;
+        ignition::math::Vector3d socialForce_ = SocialForce(pose, this->velocity);
+        //ignition::math::Vector3d obstacleForce = ObstacleForce(pose);
+
+        //std::chrono::time_point<std::chrono::system_clock> start, end;
+        //start = std::chrono::system_clock::now();
+        //end = std::chrono::system_clock::now();
+        //std::chrono::duration<double> elapsed_seconds = end-start;
+        //ROS_ERROR("time count: %lf", elapsed_seconds.count());
+        //ignition::math::Vector3d a = (this->socialForceFactor * socialForce_) + (this->desiredForceFactor * desiredForce) + (this->obstacleForceFactor * obstacleForce);
+        ignition::math::Vector3d a = (this->socialForceFactor * socialForce_) + (this->desiredForceFactor * desiredForce);
+
+        //this->velocity = 0.5 * this->velocity + a * dt;
+        this->velocity = this->velocity * this->vel_param + a * dt;
+
+        double speed = this->velocity.Length();
+        if (speed > this->vMax) {
+            this->velocity = this->velocity.Normalize() * this->vMax;
+        }
+
+        ignition::math::Angle yaw_update = atan2(this->velocity.Y(), this->velocity.X()) + 0.5 * PI - rpy.Z();
+        yaw_update.Normalize();
+
+        double temp_vel = this->velocity.Length();
+
+        // Rotate in place, instead of jumping.
+        if (std::fabs(yaw_update.Radian()) > (this->maxAngleUpdate / 180.0 * PI)) {
+            double yaw_update_sign = yaw_update.Radian() / std::fabs(yaw_update.Radian());
+            yaw_update = this->maxAngleUpdate / 180 * PI * yaw_update_sign;
+        }
+        ignition::math::Angle new_yaw = rpy.Z() + yaw_update.Radian() - 0.5 * PI;
+        this->velocity.X() = temp_vel * cos(yaw_update.Radian()) * cos(new_yaw.Radian());
+        this->velocity.Y() = temp_vel * cos(yaw_update.Radian()) * sin(new_yaw.Radian());
+
+        pose.Rot() = ignition::math::Quaterniond(0.5 * PI, 0, new_yaw.Radian() + 0.5 * PI);
+        yaw_vel = yaw_update.Radian() / dt;
+
+        //ROS_ERROR("%s, yaw: %lf", this->actor->GetName().c_str(), rpy.Z()+yaw.Radian()-0.5*PI);
+        pose.Pos() = pose.Pos() + this->velocity * dt;
+        pose.Pos().Z(this->fixed_actor_height);
+
+        double distanceTraveled = (pose.Pos() -
+                                   this->actor->WorldPose().Pos()).Length();
+        if (pose.Pos().Y() < -10.0) {
+            pose.Pos() = this->start_location;
+            this->actor->SetWorldPose(pose, false, false);
+        }
+        CallPublisher(a, pos.Normalize(), socialForce_, new_yaw.Radian());
+        this->actor->SetWorldPose(pose, false, false);
+        this->actor->SetScriptTime(this->actor->ScriptTime() +
+                                   (distanceTraveled * this->animationFactor));
+        this->lastUpdate = _info.simTime;
+
+        // ros stuff
+        //static tf::TransformBroadcaster br;
+        //tf::Transform tf_transform;
+        //tf_transform.setOrigin(tf::Vector3(pose.Pos().X(),pose.Pos().Y(),0));
+        //tf::Quaternion tf_q;
+        //tf_q.setRPY(rpy.X()-0.5*PI, rpy.Y(), new_yaw.Radian());
+        //tf_transform.setRotation(tf_q);
+        //br.sendTransform(tf::StampedTransform(tf_transform, ros::Time::now(), "default_world", this->actor->GetName()));
+        //ros::spinOnce();
+
+        //    double distance = pose.Pos().Distance(this->target);
+        //    //Remove this below code so that the patient doesn't wobble around the target
+        //    if (distance < sf_distance_th)
+        //    {
+        //        ignition::math::Vector3d temp = this->start_location;
+        //        this->start_location = this->target;
+        //        this->target = temp;
+        //        pos = this->target - pose.Pos();
+        //    }
+    }
 }
 
 // Set target position service callback. Response is the target position right now
-bool ActorPlugin::SetTargetCallback(actor_services::SetPose::Request& req, actor_services::SetPose::Response& res){
+bool PatientPlugin::SetTargetCallback(actor_services::SetPose::Request& req, actor_services::SetPose::Response& res){
     res.x = this->target.X();
     res.y = this->target.Y();
     if (req.set_flag == true)
@@ -357,7 +361,7 @@ bool ActorPlugin::SetTargetCallback(actor_services::SetPose::Request& req, actor
     return true;
 }
 
-bool ActorPlugin::GetVelCallback(actor_services::GetVel::Request& req, actor_services::GetVel::Response& res){
+bool PatientPlugin::GetVelCallback(actor_services::GetVel::Request& req, actor_services::GetVel::Response& res){
     res.x = this->velocity.X();
     res.y = this->velocity.Y();
     res.yaw = this->yaw_vel;
@@ -371,7 +375,7 @@ bool ActorPlugin::GetVelCallback(actor_services::GetVel::Request& req, actor_ser
 }
 
 // \Set actor position service callback. Response is the position right now
-bool ActorPlugin::SetPoseCallback(actor_services::SetPose::Request& req,
+bool PatientPlugin::SetPoseCallback(actor_services::SetPose::Request& req,
                                   actor_services::SetPose::Response& res){
     ignition::math::Pose3d pose = this->actor->WorldPose();
     ignition::math::Vector3d pos = pose.Pos();
@@ -387,7 +391,7 @@ bool ActorPlugin::SetPoseCallback(actor_services::SetPose::Request& req,
 }
 
 /// \brief ROS helper function that processes messages
-void ActorPlugin::QueueThread()
+void PatientPlugin::QueueThread()
 {
     // It gonna be really slow if you change it to 0
     static const double timeout = 0.01;
@@ -397,7 +401,7 @@ void ActorPlugin::QueueThread()
     }
 }
 
-void ActorPlugin::CallPublisher(
+void PatientPlugin::CallPublisher(
         ignition::math::Vector3d af_,
         ignition::math::Vector3d pos_,
         ignition::math::Vector3d sf_,
@@ -426,7 +430,7 @@ void ActorPlugin::CallPublisher(
     VelPublisher.publish(actor_vel_twist);
 }
 
-void ActorPlugin::get_ros_parameters(const ros::NodeHandlePtr rosNodeConstPtr){
+void PatientPlugin::get_ros_parameters(const ros::NodeHandlePtr rosNodeConstPtr){
     assert(rosNodeConstPtr->getParam("/SOCIAL_FORCE_FACTOR", socialForceFactor));
     assert(rosNodeConstPtr->getParam("/DESIRED_FORCE_FACTOR", desiredForceFactor));
     assert(rosNodeConstPtr->getParam("/OBSTACLE_FORCE_FACTOR", obstacleForceFactor));
@@ -451,7 +455,7 @@ void ActorPlugin::get_ros_parameters(const ros::NodeHandlePtr rosNodeConstPtr){
 
 /////////////////////////////////////////////////
 // TODO  A vary naive strategy need to be update
-//void ActorPlugin::HandleObstacles(ignition::math::Vector3d &_pos)
+//void PatientPlugin::HandleObstacles(ignition::math::Vector3d &_pos)
 //{
 //for (unsigned int i = 0; i < this->world->ModelCount(); ++i)
 //{
@@ -474,7 +478,7 @@ void ActorPlugin::get_ros_parameters(const ros::NodeHandlePtr rosNodeConstPtr){
 //}
 
 ////useless now
-//ignition::math::Vector3d ActorPlugin::ObstacleForce(ignition::math::Pose3d &_pose) const
+//ignition::math::Vector3d PatientPlugin::ObstacleForce(ignition::math::Pose3d &_pose) const
 //{
 //ignition::math::Vector3d minDiff;
 //double minDistanceSquared = INFINITY;
@@ -500,7 +504,7 @@ void ActorPlugin::get_ros_parameters(const ros::NodeHandlePtr rosNodeConstPtr){
 
 ///////////////////////////////////////////////////
 //// deprecated
-//void ActorPlugin::ChooseNewTarget()
+//void PatientPlugin::ChooseNewTarget()
 //{
 //ignition::math::Vector3d newTarget(this->target);
 //while ((newTarget - this->target).Length() < 2.0)

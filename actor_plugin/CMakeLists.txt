@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(actor_plugin)
-
-
+set(CMAKE_BUILD_TYPE Debug)
 find_package(roscpp REQUIRED)
 find_package(actor_services REQUIRED)
 find_package(tf REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(message_generation REQUIRED)
 include_directories(${roscpp_INCLUDE_DIRS})
 include_directories(${actor_services_INCLUDE_DIRS})
 include_directories(${tf_INCLUDE_DIRS})
