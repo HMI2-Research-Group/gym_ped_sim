@@ -3,6 +3,15 @@ import rospy
 import random
 from time import sleep
 from tf import TransformListener
+import numpy as np
+
+def get_point_at_distance(x0, y0, x1, y1, d):
+    point0 = np.array([x0, y0])
+    point1 = np.array([x1, y1])
+    vec = point1-point0
+    unit_vector = vec / np.linalg.norm(vec)
+    my_point = point0 - d*unit_vector
+    return [my_point[0], my_point[1]]
 
 
 class PatientFollower:
@@ -13,7 +22,11 @@ class PatientFollower:
     def follow_robot(self):
         try:
             position, _ = self.tf.lookupTransform("/odom", "/base_link", rospy.Time(0))
+            x0, y0, _ = position
+            position, _ = self.tf.lookupTransform("/odom", "/front_rocker_link", rospy.Time(0))
+            x1, y1, _ = position
             # set_position = rospy.ServiceProxy('/actor0/SetActorPosition', SetPose)
+            position = get_point_at_distance(x0, y0, x1, y1, 0.25)
             set_target = rospy.ServiceProxy('/actor5/SetActorTarget', SetPose)
             # resp = set_target(True, 0.0, 0.0)
             resp = set_target(True, position[0], position[1])

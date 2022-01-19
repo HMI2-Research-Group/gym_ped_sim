@@ -323,7 +323,7 @@ void PatientPlugin::OnUpdate(const common::UpdateInfo &_info) {
         this->actor->SetWorldPose(pose, false, false);
         this->actor->SetScriptTime(this->actor->ScriptTime() +
                                    (distanceTraveled * this->animationFactor));
-        this->lastUpdate = _info.simTime;
+
 
         // ros stuff
         //static tf::TransformBroadcaster br;
@@ -345,6 +345,7 @@ void PatientPlugin::OnUpdate(const common::UpdateInfo &_info) {
         //        pos = this->target - pose.Pos();
         //    }
     }
+    this->lastUpdate = _info.simTime;
 }
 
 // Set target position service callback. Response is the target position right now

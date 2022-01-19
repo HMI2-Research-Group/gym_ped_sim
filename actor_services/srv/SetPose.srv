@@ -1,6 +1,6 @@
-bool set_flag
-float64 new_x
-float64 new_y
+float64 roll
+float64 pitch
+float64 yaw
 
 ------
 float64 x
