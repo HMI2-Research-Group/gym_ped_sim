@@ -59,6 +59,7 @@ add_service_files(
   FILES
   SetPose.srv
   GetVel.srv
+  SetHumanHeading.srv
 #   Service2.srv
 )
 
