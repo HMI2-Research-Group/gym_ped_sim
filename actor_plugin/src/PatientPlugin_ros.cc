@@ -362,6 +362,11 @@ bool PatientPlugin::SetTargetCallback(actor_services::SetPose::Request& req, act
     return true;
 }
 
+bool PatientPlugin::SetHeadingCallback(actor_services::SetHumanHeading::Request& req, actor_services::SetHumanHeading::Response& res){
+
+    return true;
+}
+
 bool PatientPlugin::GetVelCallback(actor_services::GetVel::Request& req, actor_services::GetVel::Response& res){
     res.x = this->velocity.X();
     res.y = this->velocity.Y();

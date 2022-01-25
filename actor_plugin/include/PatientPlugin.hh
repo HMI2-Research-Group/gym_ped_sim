@@ -23,6 +23,7 @@
 #include <memory>
 #include <thread>
 #include <actor_services/SetPose.h>
+#include <actor_services/SetHumanHeading.h>
 #include <actor_services/GetVel.h>
 #include <ros/ros.h>
 #include <ros/callback_queue.h>
@@ -140,6 +141,9 @@ namespace gazebo
 
         bool SetTargetCallback(actor_services::SetPose::Request&,
                                actor_services::SetPose::Response&);
+
+        bool SetHeadingCallback(actor_services::SetHumanHeading::Request&,
+                               actor_services::SetHumanHeading::Response&);
 
         bool GetVelCallback(actor_services::GetVel::Request&,
                             actor_services::GetVel::Response&);
