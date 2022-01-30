@@ -63,6 +63,8 @@ namespace gazebo
 
         ros::ServiceServer GetVelService;
 
+        ros::ServiceServer SetHeadingService;
+
         // ros::ServiceClient GetVelClient;
 
         ignition::math::Vector3d CallActorVelClient(std::string) const;

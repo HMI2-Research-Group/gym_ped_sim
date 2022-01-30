@@ -120,6 +120,10 @@ void PatientPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
     this->GetVelService = this->rosNode->advertiseService("/"+this->actor->GetName()+"/GetActorVelocity",
                                                           &PatientPlugin::GetVelCallback, this);
 
+    this->SetHeadingService = this->rosNode->advertiseService("/"+this->actor->GetName()+"/SetActorHeading",
+                                                          &PatientPlugin::SetHeadingCallback, this);
+
+
     this->VelPublisher = this->rosNode->advertise<geometry_msgs::Twist>("/"+this->actor->GetName()+"/actor_vel",1);
 
     this->rosQueueThread =
@@ -363,7 +367,11 @@ bool PatientPlugin::SetTargetCallback(actor_services::SetPose::Request& req, act
 }
 
 bool PatientPlugin::SetHeadingCallback(actor_services::SetHumanHeading::Request& req, actor_services::SetHumanHeading::Response& res){
-
+    res.x = 0.0;
+    ignition::math::Pose3d pose = this->actor->WorldPose();
+    ignition::math::Vector3d rpy = pose.Rot().Euler();
+    pose.Rot() = ignition::math::Quaterniond(rpy.X(), rpy.Y(), req.yaw);
+    this->actor->SetWorldPose(pose, false, false);
     return true;
 }
 
