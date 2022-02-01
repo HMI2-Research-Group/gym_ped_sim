@@ -68,7 +68,7 @@ class PatientFollower:
                 if i > 3:
                     break
             except Exception as e:
-                # print("Error: %s" % e)
+                print("Error: %s" % e)
                 pass
 
     def patient_target(self):
