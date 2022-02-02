@@ -4,7 +4,7 @@ from geometry_msgs.msg import Twist
 
 class SetRidgebackVelocity:
     def __init__(self):
-        self.pub = rospy.Publisher("/ridgeback_velocity_controller/cmd_vel", Twist, queue_size=1)
+        self.pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
         self.twistmsg = Twist()
 
     def set_velocity(self, x, y):
