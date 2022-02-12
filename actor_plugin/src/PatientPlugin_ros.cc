@@ -274,7 +274,7 @@ void PatientPlugin::OnUpdate(const common::UpdateInfo &_info) {
         ignition::math::Vector3d rpy = pose.Rot().Euler();
 
 
-        this->HandleObstacles(pos);
+//        this->HandleObstacles(pos);
         // Get the desired force to waypoint: "I want to go there at full speed!"
         ignition::math::Vector3d desiredForce = pos.Normalize() * this->vMax;
         ignition::math::Vector3d socialForce_ = SocialForce(pose, this->velocity);
