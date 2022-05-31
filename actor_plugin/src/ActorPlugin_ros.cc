@@ -119,6 +119,9 @@ void ActorPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 
   this->GetVelService = this->rosNode->advertiseService("/"+this->actor->GetName()+"/GetActorVelocity",
       &ActorPlugin::GetVelCallback, this);
+  
+  this->GetVelService = this->rosNode->advertiseService("/"+this->actor->GetName()+"/GetActorPosition",
+      &ActorPlugin::GetPosCallback, this);
 
   this->VelPublisher = this->rosNode->advertise<geometry_msgs::Twist>("/"+this->actor->GetName()+"/actor_vel",1);
 
@@ -367,6 +370,15 @@ bool ActorPlugin::GetVelCallback(actor_services::GetVel::Request& req, actor_ser
     this->velocity.Y(req.new_y);
     this->yaw_vel = req.new_yaw;
   }
+  return true;
+}
+
+bool ActorPlugin::GetPosCallback(actor_services::GetVel::Request& req, actor_services::GetVel::Response& res){
+  ignition::math::Pose3d pose = this->actor->WorldPose();
+  ignition::math::Vector3d pos = pose.Pos();
+  res.x = pos.X();
+  res.y = pos.Y();
+  res.yaw = 0.0;
   return true;
 }
 
